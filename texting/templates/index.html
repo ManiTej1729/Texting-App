@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>WhatsDown</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <style>
+      body {
+        font-family: "Poppins", sans-serif;
+        background: #ece5dd; 
+        color: #fff;
+        margin: 0;
+        padding: 0;
+        background-attachment: fixed;
+      }
+
+      .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 20px;
+        color: #fff; 
+        padding: 20px;
+        background-color: #128C7E; 
+        border-radius: 20px;
+      }
+
+      .options {
+        display: flex;
+        justify-content: space-around;
+        width: 80%;
+        margin-bottom: 20px;
+      }
+
+      .option {
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease;
+        cursor: pointer;
+        text-decoration: none;
+        color: #fff; 
+      }
+
+      .option:hover {
+        transform: translateY(-5px);
+      }
+
+      .option img {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 50%;
+        margin-bottom: 10px;
+      }
+
+      .option p {
+        margin: 0;
+        font-size: 24px;
+        font-weight: bold;
+        padding: 20px;
+        background-color: #128C7E; 
+        border-radius: 20px;
+        color: #fff; 
+        transition: all 0.3s ease;
+        position: relative;
+      }
+
+      .option:hover p {
+        color: #000; 
+        border-color: #000;
+        box-shadow: 0 0 10px #000;
+      }
+
+      .footer {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+        background: #075E54; 
+        color: #fff;
+        text-align: center;
+        padding: 10px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="header">Welcome to WhatsDown</h1>
+      <div class="options">
+        <a class="option" href="/login">
+          <p>Sign In</p>
+        </a>
+        <a class="option" href="/signin">
+          <p>Sign Up</p>
+        </a>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <h2>WhatsDown</h2>
+      <p>Copyright © 2024 WhatsDown Pvt. Ltd. All rights reserved.</p>
+    </footer>
+  </body>
+</html>

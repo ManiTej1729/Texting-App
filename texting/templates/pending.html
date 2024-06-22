@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Requests</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #ece5dd;
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+      }
+
+      p {
+        font-size: 20px;
+        color: #075e54;
+        margin: 20px 0 10px;
+      }
+
+      .incItem, .outItem {
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        padding: 15px;
+        margin: 10px 0;
+        width: 100%;
+        max-width: 500px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .incItem button, .outItem button {
+        background-color: #25d366;
+        color: white;
+        border: none;
+        border-radius: 25px;
+        font-size: 16px;
+        padding: 10px;
+        margin-left: 5px;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      }
+
+      .incItem button:hover, .outItem button:hover {
+        background-color: #1ebe57;
+      }
+
+      .rejectButton {
+        background-color: #ff3b30;
+      }
+
+      .rejectButton:hover {
+        background-color: #e52d22;
+      }
+
+      .pendingButton {
+        background-color: #ffc107;
+      }
+
+      .pendingButton:hover {
+        background-color: #e0a800;
+      }
+
+      .back-btn {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background-color: #25d366;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        font-size: 20px;
+        padding: 10px 15px;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      }
+
+      .back-btn:hover {
+        background-color: #1ebe57;
+      }
+    </style>
+  </head>
+  <body>
+    <button class="back-btn" onclick="goBack()">←</button>
+    <p>Incoming Requests</p>
+    {% for incoming in inc %}
+    <div class="incItem">
+      {{ incoming }}<button onclick="acceptRequest(this)">Accept</button>
+      <button class="rejectButton" onclick="rejectRequest(this)">Reject</button>
+    </div>
+    {% endfor %}
+    <p>Outgoing Requests</p>
+    {% for outgoing in out %}
+    <div class="outItem">{{ outgoing }}<button class="pendingButton">Pending</button></div>
+    {% endfor %}
+    <script>
+      function goBack() {
+        window.location.href = '/chat';
+      }
+
+      function acceptRequest(element) {
+        const divElement = element.parentElement;
+        let username = divElement.childNodes[0].nodeValue.trim();
+        console.log(username);
+        fetch("/approve", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            target: `${username}`,
+            status: "accepted",
+          }),
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(
+                "Error in acceptRequest function " + response.statusText
+              );
+            }
+            return response.json();
+          })
+          .then((data) => {
+            console.log(data);
+            divElement.remove();
+            alert(data["status"]);
+          });
+      }
+
+      function rejectRequest(element) {
+        const divElement = element.parentElement;
+        let username = divElement.childNodes[0].nodeValue.trim();
+        console.log(username);
+        fetch("/approve", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            target: `${username}`,
+            status: "rejected",
+          }),
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(
+                "Error in rejectRequest function " + response.statusText
+              );
+            }
+            return response.json();
+          })
+          .then((data) => {
+            console.log(data);
+            divElement.remove();
+            alert(data["status"]);
+          });
+      }
+
+      window.addEventListener("beforeunload", function (event) {
+        fetch("/close").then((response) => {
+          console.log(response.json());
+        });
+      });
+    </script>
+  </body>
+</html>

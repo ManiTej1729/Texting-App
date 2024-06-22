@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Request a Friend</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #ece5dd;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        position: relative;
+      }
+
+      #outerDiv {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        width: 80%;
+        max-width: 500px;
+        text-align: center;
+      }
+
+      input {
+        margin-top: 20px;
+        padding: 15px;
+        width: calc(100% - 32px);
+        border: 1px solid #ccc;
+        border-radius: 25px;
+        font-size: 16px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      .btn {
+        margin-top: 20px;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 25px;
+        font-size: 16px;
+        background-color: #25d366;
+        color: white;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn:hover {
+        background-color: #1ebe57;
+      }
+
+      .foundFriends {
+        margin-top: 20px;
+        padding: 15px;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .foundFriends p {
+        margin: 0;
+        font-size: 16px;
+        color: #333;
+      }
+
+      .end {
+        display: flex;
+      }
+
+      .end button {
+        background-color: #25d366;
+        color: white;
+        border: none;
+        border-radius: 25px;
+        font-size: 16px;
+        padding: 10px;
+        margin-left: 5px;
+        cursor: pointer;
+      }
+
+      .end button:hover {
+        background-color: #1ebe57;
+      }
+
+      .cancel {
+        background-color: #ff3b30;
+      }
+
+      .cancel:hover {
+        background-color: #e52d22;
+      }
+
+      .back-btn {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background-color: #25d366;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        font-size: 20px;
+        padding: 10px 15px;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      }
+
+      .back-btn:hover {
+        background-color: #1ebe57;
+      }
+    </style>
+  </head>
+  <body>
+    <button class="back-btn" onclick="goBack()">←</button>
+    <div id="outerDiv">
+      <input type="text" placeholder="Enter a username" id="inp" />
+      <button class="btn" onclick="search()">Search</button><br />
+    </div>
+    <script>
+      function goBack() {
+        window.location.href = '/chat';
+      }
+
+      function sendRequest() {
+        const frndName = document.getElementById("inp").value;
+        frndName.trim();
+
+        console.log(frndName);
+        fetch("/sendReq", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            target: `${frndName}`,
+          }),
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(
+                "Error in sendRequest function " + response.statusText
+              );
+            }
+            return response.json();
+          })
+          .then((data) => {
+            console.log(data);
+            cancelRequest();
+            alert(data.status);
+          });
+      }
+
+      function cancelRequest() {
+        const inputTag = document.getElementById("inp");
+        inputTag.value = "";
+        document.querySelector(".foundFriends").remove();
+      }
+
+      function search() {
+        const inputTag = document.getElementById("inp");
+        let frndName = inputTag.value;
+        frndName.trim();
+        if (inputTag.value === "") {
+          alert("Field is empty");
+          return;
+        } else {
+          fetch("/dbs", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              target: `${frndName}`,
+            }),
+          })
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error(
+                  "Error in search function " + response.statusText
+                );
+              }
+              return response.json();
+            })
+            .then((data) => {
+              const status = data["Status"];
+              const value = data["Value"];
+              console.log(data);
+              if (status == 1) {
+                alert(value);
+                inputTag.value = "";
+              } else {
+                const requiredDiv = document.getElementById("outerDiv");
+                const newDiv = document.createElement("div");
+                newDiv.classList.add("foundFriends");
+                const target = document.createElement("p");
+                target.innerHTML = `${value}`;
+                newDiv.appendChild(target);
+                const subdiv = document.createElement("div");
+                subdiv.classList.add("end");
+                const send = document.createElement("button");
+                const cancel = document.createElement("button");
+                send.classList.add('send');
+                cancel.classList.add('cancel');
+                send.innerHTML = "⇢";
+                cancel.innerHTML = "✕";
+                send.id = "send-btn";
+                cancel.id = "cancel-btn";
+                send.addEventListener("click", sendRequest);
+                cancel.addEventListener("click", cancelRequest);
+                subdiv.appendChild(send);
+                subdiv.appendChild(cancel);
+                newDiv.append(subdiv);
+                requiredDiv.appendChild(newDiv);
+              }
+            });
+        }
+      }
+
+      window.addEventListener("beforeunload", function (event) {
+        fetch("/close").then((response) => {
+          console.log(response.json());
+        });
+      });
+    </script>
+  </body>
+</html>
