@@ -330,7 +330,8 @@
         msgBody = msgBody.trim();
         console.log(msgBody);
         inputTag.value = "";
-        const contact_name = document.getElementById("username").innerHTML;
+        let contact_name = document.getElementById("username").innerHTML;
+        contact_name = contact_name.split(' ')[0]
         fetch("/sendMsg", {
           method: "POST",
           headers: {
