@@ -333,9 +333,9 @@ def approve():
     data = request.json
     print(data)
     username = session['user_details']['username']
+    target = data['target']
     tableName = "`" + username + "`"
     tableNameT = "`" + target + "`"
-    target = data['target']
     mydb, cur = dbConnect()
     if data['status'] == "rejected":
         # sender query
