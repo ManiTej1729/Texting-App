@@ -27,6 +27,7 @@ def dbConnect():
 def disConnDb(mydb, cur):
     if not mydb:
         return
+    print('Disconnected')
     mydb.commit()
     cur.close()
     mydb.close()
@@ -79,6 +80,23 @@ def torture(s):
 
 @app.route('/', methods=['POST','GET'])
 def index():
+    token = session.get('jwt_token')
+    if token:
+        try:
+            payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+            username = payload['username']
+            update_online(username)
+            return redirect(url_for('chat'))
+        except jwt.exceptions.ExpiredSignatureError:
+            # Token has expired
+            print(1)
+            session.clear()
+            return render_template("index.html")
+        except jwt.exceptions.InvalidTokenError:
+            # Token is invalid
+            print(2)
+            session.clear()
+            return render_template("index.html")
     return render_template("index.html")
 
 @app.route('/<typer>', methods=['POST', 'GET'])
@@ -120,14 +138,13 @@ def add(typer):
                 disConnDb(mydb, cur)
                 return render_template("login.html", err="User already exists", new=typer)
         query = f'insert into users (username, email, password) values ("{name}", "{email}", "{password}")'
-        secret_key = '!@#$%'
         payload = {
             # 'user_id': 1,
             'username': name,
             'password': password,
             'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)  # Token expiration time
         }
-        token = jwt.encode(payload, secret_key, algorithm='HS256')
+        token = jwt.encode(payload, app.secret_key, algorithm='HS256')
         session['jwt_token'] = token
         session['user_details'] = {'username': name}
         cmd = "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)"
@@ -158,13 +175,12 @@ def add(typer):
         for items in list_of_users:
             if items[1] == email:
                 if bcrypt.checkpw(password.encode('utf-8'), items[2].encode('utf-8')):
-                    secret_key = '!@#$%'
                     payload = {
                         # 'user_id': 1,
                         'username': name[0],
-                        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)  # Token expiration time
+                        # 'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)  # Token expiration time
                     }
-                    token = jwt.encode(payload, secret_key, algorithm='HS256')
+                    token = jwt.encode(payload, app.secret_key, algorithm='HS256')
                     session['jwt_token'] = token
                     session['user_details'] = {'username': name[0]}
                     # print(session)
@@ -418,7 +434,6 @@ def sendMsg():
     sender = session['user_details']['username']
     textBody = data['textBody']
     receiver = data['receiver']
-    tableName = getTableName(sender, receiver)
     image = data['image']
     audio = data['audio']
     msgType = data['msgType']
@@ -440,6 +455,7 @@ def sendMsg():
         if currContact == sender:
             msgStatus = "seen"
     # print(msgStatus)
+    tableName = getTableName(sender, receiver)
     query = f'INSERT INTO {tableName} (textBody, sender, receiver, msgType, msgStatus, replyMsg, deleteStatus, forwardedFlag) VALUES ("{textBody}", "{sender}", "{receiver}", "{msgType}", "{msgStatus}", {replyMessage}, "both", {forwardedFlag})'
     print(query)
     cur.execute(query)
