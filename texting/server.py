@@ -270,7 +270,7 @@ def pending():
     incoming_list = [x[0] for x in incoming_list]
     print(incoming_list)
     # for outgoing requests
-    query = f'SELECT contact_name FROM {username} WHERE pending_status = "Outgoing"'
+    query = f'SELECT contact_name FROM {tableName} WHERE pending_status = "Outgoing"'
     cur.execute(query)
     print(query)
     outgoing_list = cur.fetchall()
