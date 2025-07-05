@@ -8,22 +8,6 @@ from flask import Flask, render_template, request, redirect, url_for, session
 app = Flask(__name__)
 app.secret_key = 'top_secret'
 
-# def dbConnect():
-#     mydb = pymysql.connect(
-#         host = "localhost",
-#         user = "root",
-#         password = "M@ni1234",
-#         database = "whatsapp"
-#     )
-#     cur = mydb.cursor()
-#     if mydb.open:
-#         print("Connected")
-#         cur = mydb.cursor()
-#         cur.execute("use whatsapp")
-#     else:
-#         print("Falied to connect")
-#     return mydb, cur
-
 mydb = pymysql.connect(
     host = "localhost",
     user = "root",
@@ -38,6 +22,21 @@ if mydb.open:
 else:
     print("Falied to connect")
 
+def custom_execute(query, params=None, fetch=0):
+    try:
+        with mydb.cursor() as cur:
+            cur.execute(query, params)
+            if fetch > 0:
+                if fetch == 1:
+                    return cur.fetchone()
+                else:
+                    return cur.fetchall()
+        mydb.commit()
+    except Exception as e:
+        print(f"[custom_execute] Error: {e}")
+        mydb.rollback()
+        return None
+
 def hash_password(password):
     salt = bcrypt.gensalt()
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
@@ -46,7 +45,8 @@ def hash_password(password):
 def update_online(username):
     query = f'UPDATE lastSeen SET lastSeenTime = "online" WHERE contact_name = "{username}"'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     mydb.commit()
 
 def getTableName(u1, u2):
@@ -103,10 +103,12 @@ def index():
 def add(typer):
     query = 'CREATE TABLE IF NOT EXISTS users (S_no INT NOT NULL AUTO_INCREMENT, username VARCHAR(255), email VARCHAR(255), password VARCHAR(1000), PRIMARY KEY (S_no));'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     query = 'CREATE TABLE IF NOT EXISTS lastSeen (contact_name VARCHAR(255) UNIQUE, lastSeenTime VARCHAR(255));'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     token = session.get('jwt_token')
     if token:
         try:
@@ -122,8 +124,9 @@ def add(typer):
             session.clear()
     query = 'SELECT username, email, password FROM users'
     print(query)
-    cur.execute(query)
-    list_of_users = cur.fetchall()
+    # cur.execute(query)
+    # list_of_users = cur.fetchall()
+    list_of_users = custom_execute(query, fetch=2)
     # print(list_of_users)
     if request.method == 'POST' and typer == 'signin':
         name = request.form.get('name')
@@ -158,14 +161,17 @@ def add(typer):
         session['user_details'] = {'username': name}
         cmd = "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)"
         print(cmd)
-        cur.execute(cmd, (name, email, password))
+        # cur.execute(cmd, (name, email, password))
+        custom_execute(cmd, params=(name, email, password))
         tableName = "`" + name + "`"
         query = f'CREATE TABLE {tableName} (S_no INT PRIMARY KEY AUTO_INCREMENT, contact_name VARCHAR(255), pending_status VARCHAR(17), currContact TEXT);'
         print(query)
-        cur.execute(query)
+        # cur.execute(query)
+        custom_execute(query)
         query = f'INSERT INTO lastSeen (contact_name, lastSeenTime) VALUES ("{name}", "online");'
         print(query)
-        cur.execute(query)
+        # cur.execute(query)
+        custom_execute(query)
         mydb.commit()
         return redirect(url_for('chat'))
     elif request.method == 'POST' and typer == 'login':
@@ -173,8 +179,9 @@ def add(typer):
         password = request.form.get('password')
         query = 'SELECT username FROM users WHERE email = %s'
         print(query)
-        cur.execute(query, (email,))
-        name = cur.fetchone()
+        # cur.execute(query, (email,))
+        # name = cur.fetchone()
+        name = custom_execute(query, params=(email,), fetch=1)
         if name == None:
             return render_template("login.html", err="User not found", new=typer)
         # print("name :", name[0])
@@ -191,7 +198,8 @@ def add(typer):
                     # print(session)
                     query = f'UPDATE lastSeen SET lastSeenTime = "online" WHERE contact_name = "{name[0]}"'
                     print(query)
-                    cur.execute(query)
+                    # cur.execute(query)
+                    custom_execute(query)
                     mydb.commit()
                     return redirect(url_for('chat'))
         return render_template("login.html", err="Incorrect username / password", new=typer)
@@ -248,8 +256,9 @@ def dbs():
         return responseObject
     query = f'SELECT * FROM users WHERE username = "{target}"'
     print(query)
-    cur.execute(query)
-    found = cur.fetchone()
+    # cur.execute(query)
+    # found = cur.fetchone()
+    found = custom_execute(query, fetch=1)
     if found:
         responseObject = {
             'Value': f"{target}",
@@ -284,8 +293,9 @@ def chat():
     tableName = "`" + username + "`"
     query = f'SELECT * FROM {tableName} WHERE pending_status = "Friend"'
     print(query)
-    cur.execute(query)
-    contacts = cur.fetchall()
+    # cur.execute(query)
+    # contacts = cur.fetchall()
+    contacts = custom_execute(query, fetch=2)
     print(contacts)
     contacts = [x[1] for x in contacts]
     return render_template('chat.html', contacts=contacts, username=username)
@@ -313,15 +323,17 @@ def pending():
     tableName = "`" + username + "`"
     query = f'SELECT contact_name FROM {tableName} WHERE pending_status = "Incoming"'
     print(query)
-    cur.execute(query)
-    incoming_list = cur.fetchall()
+    # cur.execute(query)
+    # incoming_list = cur.fetchall()
+    incoming_list = custom_execute(query, fetch=2)
     incoming_list = [x[0] for x in incoming_list]
     print(incoming_list)
     # for outgoing requests
     query = f'SELECT contact_name FROM {tableName} WHERE pending_status = "Outgoing"'
-    cur.execute(query)
     print(query)
-    outgoing_list = cur.fetchall()
+    # cur.execute(query)
+    # outgoing_list = cur.fetchall()
+    outgoing_list = custom_execute(query, fetch=2)
     outgoing_list = [x[0] for x in outgoing_list]
     print(outgoing_list)
     return render_template('pending.html', inc=incoming_list, out=outgoing_list)
@@ -347,6 +359,8 @@ def sendReq():
     print(data)
     username1 = session['user_details']['username']
     username2 = data['target']
+    username1 = username1.strip().lower()
+    username2 = username2.strip().lower()
     print(username1, username2)
     if username1 == username2:
         responseObject = {
@@ -357,8 +371,9 @@ def sendReq():
     tableName2 = "`" + username2 + "`"
     query = f'SELECT contact_name FROM {tableName1} WHERE contact_name = "{username2}"'
     print(query)
-    cur.execute(query)
-    result = cur.fetchone()
+    # cur.execute(query)
+    # result = cur.fetchone()
+    result = custom_execute(query, fetch=1)
     if result:
         responseObject = {
             'status': f"{username2} is already in your friends list"
@@ -367,11 +382,13 @@ def sendReq():
     # for inserting into username1 table
     query = f'INSERT INTO {tableName1} (contact_name, pending_status) VALUES ("{username2}", "Outgoing")'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     # for inserting into username2 table
     query = f'INSERT INTO {tableName2} (contact_name, pending_status) VALUES ("{username1}", "Incoming")'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     mydb.commit()
     responseObject = {
         'status': "Request Sent"
@@ -405,11 +422,13 @@ def approve():
         # sender query
         query = f'DELETE FROM {tableName} WHERE contact_name = "{target}"'
         print(query)
-        cur.execute(query)
+        # cur.execute(query)
+        custom_execute(query)
         # target query
         query = f'DELETE FROM {tableNameT} WHERE contact_name = "{username}"'
         print(query)
-        cur.execute(query)
+        # cur.execute(query)
+        custom_execute(query)
         responseObject = {
             'status': f"Successfully rejected {target}"
         }
@@ -418,16 +437,19 @@ def approve():
     # sender query
     query = f'UPDATE {tableName} SET pending_status = "Friend" WHERE contact_name = "{target}"'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     # target query
     query = f'UPDATE {tableNameT} SET pending_status = "Friend" WHERE contact_name = "{username}"'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     # create conversation thread
     tableName = getTableName(username, target)
     query = f'CREATE Table {tableName} ( S_no INT PRIMARY KEY AUTO_INCREMENT, textBody TEXT, sender VARCHAR(255), receiver VARCHAR(255), msgTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP, image LONGBLOB, audio LONGBLOB, msgType VARCHAR(20), msgStatus VARCHAR(20), replyMsg INT, deleteStatus VARCHAR(20), forwardedFlag INT DEFAULT 0);'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     mydb.commit()
     responseObject = {
         'status': f"Added {target} to your contacts / friends list"
@@ -458,20 +480,24 @@ def showChat():
     tableName = "`" + username + "`"
     query = f'UPDATE {tableName} SET currContact = "{target}"'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     mydb.commit()
     tableName = getTableName(username, target)
     query = f'UPDATE {tableName} SET msgStatus = "seen" WHERE sender = "{target}"'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
+    mydb.commit()
     query = f'SELECT * FROM {tableName}'
     print(query)
-    cur.execute(query)
-    msgs = cur.fetchall()
-    mydb.commit()
+    # cur.execute(query)
+    # msgs = cur.fetchall()
+    msgs = custom_execute(query, fetch=2)
     query = f'SELECT lastSeenTime FROM lastSeen WHERE contact_name = "{target}"'
-    cur.execute(query)
-    lastSeen = cur.fetchone()
+    # cur.execute(query)
+    # lastSeen = cur.fetchone()
+    lastSeen = custom_execute(query, fetch=1)
     print(msgs)
     responseObject = {
         'data': msgs,
@@ -509,25 +535,29 @@ def sendMsg():
     msgStatus = "sent"
     query = f'SELECT lastSeenTime FROM lastSeen WHERE contact_name = "{receiver}"'
     print(query)
-    cur.execute(query)
-    status = cur.fetchone()
+    # cur.execute(query)
+    # status = cur.fetchone()
+    status = custom_execute(query, fetch=1)
     if status == "online":
         tableName = "`" + receiver + "`"
         query = f'SELECT currContact FROM {tableName} LIMIT 1'
         print(query)
-        cur.execute(query)
-        currContact = cur.fetchone()
+        # cur.execute(query)
+        # currContact = cur.fetchone()
+        currContact = custom_execute(query, fetch=1)
         if currContact == sender:
             msgStatus = "seen"
     # print(msgStatus)
     tableName = getTableName(sender, receiver)
     query = f'INSERT INTO {tableName} (textBody, sender, receiver, msgType, msgStatus, replyMsg, deleteStatus, forwardedFlag) VALUES ("{textBody}", "{sender}", "{receiver}", "{msgType}", "{msgStatus}", {replyMessage}, "both", {forwardedFlag})'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     mydb.commit()
     query = f'SELECT * FROM {tableName} ORDER BY S_no DESC LIMIT 1'
-    cur.execute(query)
-    msg = cur.fetchall()
+    # cur.execute(query)
+    # msg = cur.fetchall()
+    msg = custom_execute(query, fetch=2)
     print(msg)
     msg = msg[0]
     responseObject = {
@@ -562,7 +592,8 @@ def editMsg():
     tableName = getTableName(username, target)
     query = f'UPDATE {tableName} SET textBody = "{modifiedBody}", msgStatus = "sent" WHERE S_no = {id}'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     mydb.commit()
     responseObject = {
         'status': "Edited message successfully"
@@ -594,7 +625,8 @@ def deleteMsg():
     tableName = getTableName(username, target)
     query = f'DELETE FROM {tableName} WHERE S_no = {id}'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     mydb.commit()
     responseObject = {
         'status': "Message deleted"
@@ -625,7 +657,8 @@ def clearChat():
     tableName = getTableName(username, contact)
     query = f'DELETE FROM {tableName}'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     mydb.commit()
     responseObject = {
         'status': "Successfully deleted all the mssages"
@@ -660,7 +693,8 @@ def close():
     print("Formatted date and time:", formatted_datetime)
     query = f'UPDATE lastSeen SET lastSeenTime = "{formatted_datetime}" WHERE contact_name = "{username}"'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     mydb.commit()
     responseObject = {
         'status': 'OK'
@@ -675,7 +709,8 @@ def logout():
     print("Formatted date and time:", formatted_datetime)
     query = f'UPDATE lastSeen SET lastSeenTime = "{formatted_datetime}" WHERE contact_name = "{username}"'
     print(query)
-    cur.execute(query)
+    # cur.execute(query)
+    custom_execute(query)
     mydb.commit()
     session.pop('jwt_token', None)
     session.pop('user_details', None)
