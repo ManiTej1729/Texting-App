@@ -312,7 +312,7 @@
       </div>
     </div>
     <script>
-      const currUser = document.getElementById("user").innerText;
+      const currUser = document.getElementById("user").innerText.trim();
       const contentDiv = document.querySelector(".chat-content");
       const inputTag = document.getElementById("input-tag");
       console.log(inputTag);
@@ -336,9 +336,6 @@
         if (e.key === "/") {
           inputTag.focus();
         }
-      });
-      document.addEventListener("DOMContentLoaded", () => {
-
       });
       
       function toggleMainMenu() {
@@ -371,7 +368,7 @@
         console.log(msgBody);
         inputTag.value = "";
         let contact_name = document.getElementById("username").innerHTML;
-        contact_name = contact_name.split("<")[0];
+        contact_name = contact_name.split("<")[0].toLowerCase();
         console.log(contact_name);
         fetch("/sendMsg", {
           method: "POST",
@@ -476,6 +473,14 @@
         contentDiv.appendChild(newMsg);
       }
 
+      function toTitleCase(str) {
+        return str
+          .toLowerCase() // Make entire string lowercase
+          .split(' ')    // Split by space
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize first letter
+          .join(' ');    // Join words back with space
+      }
+
       function showChat(contact_name) {
         let currDate = "";
         let dateChange = false;
@@ -503,7 +508,7 @@
             if (lastSeen != "online") {
               lastSeen = "Last Seen " + lastSeen;
             }
-            document.getElementById("username").innerHTML = `${contact_name}`;
+            document.getElementById("username").innerHTML = `${toTitleCase(contact_name)}`;
             document.getElementById(
               "status"
             ).innerHTML = `<p style="font-size:12px">${lastSeen}</p>`;
@@ -624,7 +629,7 @@
           return;
         }
         console.log("Deleting message: " + msg_id);
-        const contact_name = document.getElementById("username").innerHTML;
+        const contact_name = document.getElementById("username").innerHTML.toLowerCase();
         fetch("/deleteMsg", {
           method: "POST",
           headers: {
@@ -653,10 +658,10 @@
       function editMessage(msg_id, body) {
         console.log("Editing message: " + msg_id);
         console.log(body);
-        let modifed = prompt(body);
+        let modifed = prompt(body, body);
         console.log(modifed);
         modifed = modifed.trim();
-        const contact_name = document.getElementById("username").innerHTML;
+        const contact_name = document.getElementById("username").innerHTML.toLowerCase();
         if (modifed != "") {
           // edit in backend
           fetch("/editMsg", {

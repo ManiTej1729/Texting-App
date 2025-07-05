@@ -8,29 +8,35 @@ from flask import Flask, render_template, request, redirect, url_for, session
 app = Flask(__name__)
 app.secret_key = 'top_secret'
 
-def dbConnect():
-    mydb = pymysql.connect(
-        host = "localhost",
-        user = "root",
-        password = "M@ni1234",
-        database = "whatsapp"
-    )
-    cur = mydb.cursor()
-    if mydb.open:
-        print("Connected")
-        cur = mydb.cursor()
-        cur.execute("use whatsapp")
-    else:
-        print("Falied to connect")
-    return mydb, cur
+# def dbConnect():
+#     mydb = pymysql.connect(
+#         host = "localhost",
+#         user = "root",
+#         password = "M@ni1234",
+#         database = "whatsapp"
+#     )
+#     cur = mydb.cursor()
+#     if mydb.open:
+#         print("Connected")
+#         cur = mydb.cursor()
+#         cur.execute("use whatsapp")
+#     else:
+#         print("Falied to connect")
+#     return mydb, cur
 
-def disConnDb(mydb, cur):
-    if not mydb:
-        return
-    print('Disconnected')
-    mydb.commit()
-    cur.close()
-    mydb.close()
+mydb = pymysql.connect(
+    host = "localhost",
+    user = "root",
+    password = "M@ni1234",
+    database = "whatsapp"
+)
+
+cur = mydb.cursor()
+if mydb.open:
+    print("Connected")
+    cur = mydb.cursor()
+else:
+    print("Falied to connect")
 
 def hash_password(password):
     salt = bcrypt.gensalt()
@@ -40,10 +46,8 @@ def hash_password(password):
 def update_online(username):
     query = f'UPDATE lastSeen SET lastSeenTime = "online" WHERE contact_name = "{username}"'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     mydb.commit()
-    disConnDb(mydb, cur)
 
 def getTableName(u1, u2):
     u1c, u2c = u1, u2
@@ -89,26 +93,35 @@ def index():
             return redirect(url_for('chat'))
         except jwt.exceptions.ExpiredSignatureError:
             # Token has expired
-            print(1)
-            session.clear()
-            return render_template("index.html")
+            pass
         except jwt.exceptions.InvalidTokenError:
             # Token is invalid
-            print(2)
-            session.clear()
-            return render_template("index.html")
+            pass
     return render_template("index.html")
 
 @app.route('/<typer>', methods=['POST', 'GET'])
 def add(typer):
+    query = 'CREATE TABLE IF NOT EXISTS users (S_no INT NOT NULL AUTO_INCREMENT, username VARCHAR(255), email VARCHAR(255), password VARCHAR(1000), PRIMARY KEY (S_no));'
+    print(query)
+    cur.execute(query)
+    query = 'CREATE TABLE IF NOT EXISTS lastSeen (contact_name VARCHAR(255) UNIQUE, lastSeenTime VARCHAR(255));'
+    print(query)
+    cur.execute(query)
     token = session.get('jwt_token')
     if token:
-        username = session['user_details']['username']
-        update_online(username)
-        return redirect(url_for('chat'))
+        try:
+            payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+            username = payload['username']
+            update_online(username)
+            return redirect(url_for('chat'))
+        except jwt.exceptions.ExpiredSignatureError:
+            # Token has expired
+            session.clear()
+        except jwt.exceptions.InvalidTokenError:
+            # Token is invalid
+            session.clear()
     query = 'SELECT username, email, password FROM users'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     list_of_users = cur.fetchall()
     # print(list_of_users)
@@ -120,13 +133,10 @@ def add(typer):
         name = name.lower()
         restricted = isValid(name)
         if restricted:
-            disConnDb(mydb, cur)
             return render_template("login.html", err=f"Username must not contain {restricted}", new=typer)
         if name == 'admin':
-            disConnDb(mydb, cur)
             return render_template("login.html", err="Please choose a different username", new=typer)
         if email == 'admin@iiit.ac.in':
-            disConnDb(mydb, cur)
             return render_template("login.html", err="Please choose a different email", new=typer)
         # torturing users
         verdict = torture(password)
@@ -135,7 +145,6 @@ def add(typer):
         password = hash_password(password)
         for items in list_of_users:
             if items[0] == name or items[1] == email:
-                disConnDb(mydb, cur)
                 return render_template("login.html", err="User already exists", new=typer)
         query = f'insert into users (username, email, password) values ("{name}", "{email}", "{password}")'
         payload = {
@@ -158,10 +167,8 @@ def add(typer):
         print(query)
         cur.execute(query)
         mydb.commit()
-        disConnDb(mydb, cur)
         return redirect(url_for('chat'))
     elif request.method == 'POST' and typer == 'login':
-        # name = request.form.get('name')
         email = request.form.get('email')
         password = request.form.get('password')
         query = 'SELECT username FROM users WHERE email = %s'
@@ -169,14 +176,12 @@ def add(typer):
         cur.execute(query, (email,))
         name = cur.fetchone()
         if name == None:
-            disConnDb(mydb, cur)
             return render_template("login.html", err="User not found", new=typer)
         # print("name :", name[0])
         for items in list_of_users:
             if items[1] == email:
                 if bcrypt.checkpw(password.encode('utf-8'), items[2].encode('utf-8')):
                     payload = {
-                        # 'user_id': 1,
                         'username': name[0],
                         # 'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)  # Token expiration time
                     }
@@ -188,12 +193,9 @@ def add(typer):
                     print(query)
                     cur.execute(query)
                     mydb.commit()
-                    disConnDb(mydb, cur)
                     return redirect(url_for('chat'))
-        disConnDb(mydb, cur)
         return render_template("login.html", err="Incorrect username / password", new=typer)
     mydb.commit()
-    disConnDb(mydb, cur)
     return render_template("login.html", new=typer)
 
 @app.route('/request', methods=['POST', 'GET'])
@@ -201,19 +203,39 @@ def friendRequest():
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
-    username = session['user_details']['username']
-    update_online(username)
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
+    # username = session['user_details']['username']
+    # update_online(username)
     return render_template('frReq.html')
 
-@app.route('/dbs', methods=['POST', 'GET'])
+@app.route('/dbs', methods=['POST'])
 def dbs():
-    # print("why")
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
-    print("Request method is:",  request.method)
-    if request.method != 'POST':
-        return "400 Bad Request", 400
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
     data = request.json
     print(data)
     target = data['target']
@@ -226,10 +248,8 @@ def dbs():
         return responseObject
     query = f'SELECT * FROM users WHERE username = "{target}"'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     found = cur.fetchone()
-    disConnDb(mydb, cur)
     if found:
         responseObject = {
             'Value': f"{target}",
@@ -242,31 +262,32 @@ def dbs():
     }
     return responseObject
 
-def twoTicks(username, contacts, mydb, cur):
-    for contact in contacts:
-        tableName = getTableName(username, contact)
-        query = f'UPDATE {tableName} SET msgStatus = "received" WHERE msgStatus = "sent" AND sender = "{contact}"'
-        print(query)
-        cur.execute(query)
-        mydb.commit()
-
 @app.route('/chat', methods=['POST', 'GET'])
 def chat():
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
-    username = session['user_details']['username']
-    update_online(username)
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
+    # username = session['user_details']['username']
+    # update_online(username)
     tableName = "`" + username + "`"
     query = f'SELECT * FROM {tableName} WHERE pending_status = "Friend"'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     contacts = cur.fetchall()
     print(contacts)
     contacts = [x[1] for x in contacts]
-    twoTicks(username, contacts, mydb, cur)
-    disConnDb(mydb, cur)
     return render_template('chat.html', contacts=contacts, username=username)
 
 @app.route('/pending', methods=['POST', 'GET'])
@@ -274,13 +295,24 @@ def pending():
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
-    username = session['user_details']['username']
-    update_online(username)
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
+    # username = session['user_details']['username']
+    # update_online(username)
     # for incoming requests
     tableName = "`" + username + "`"
     query = f'SELECT contact_name FROM {tableName} WHERE pending_status = "Incoming"'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     incoming_list = cur.fetchall()
     incoming_list = [x[0] for x in incoming_list]
@@ -290,18 +322,27 @@ def pending():
     cur.execute(query)
     print(query)
     outgoing_list = cur.fetchall()
-    disConnDb(mydb, cur)
     outgoing_list = [x[0] for x in outgoing_list]
     print(outgoing_list)
     return render_template('pending.html', inc=incoming_list, out=outgoing_list)
 
-@app.route('/sendReq', methods = ['POST', 'GET'])
+@app.route('/sendReq', methods = ['POST'])
 def sendReq():
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
-    if request.method != 'POST':
-        return "400 Bad Request", 400
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
     data = request.json
     print(data)
     username1 = session['user_details']['username']
@@ -316,7 +357,6 @@ def sendReq():
     tableName2 = "`" + username2 + "`"
     query = f'SELECT contact_name FROM {tableName1} WHERE contact_name = "{username2}"'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     result = cur.fetchone()
     if result:
@@ -333,26 +373,34 @@ def sendReq():
     print(query)
     cur.execute(query)
     mydb.commit()
-    disConnDb(mydb, cur)
     responseObject = {
         'status': "Request Sent"
     }
     return responseObject
 
-@app.route('/approve', methods = ['POST', 'GET'])
+@app.route('/approve', methods = ['POST'])
 def approve():
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
-    if request.method != 'POST':
-        return "400 Bad Request", 400
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
     data = request.json
     print(data)
     username = session['user_details']['username']
     target = data['target']
     tableName = "`" + username + "`"
     tableNameT = "`" + target + "`"
-    mydb, cur = dbConnect()
     if data['status'] == "rejected":
         # sender query
         query = f'DELETE FROM {tableName} WHERE contact_name = "{target}"'
@@ -381,7 +429,6 @@ def approve():
     print(query)
     cur.execute(query)
     mydb.commit()
-    disConnDb(mydb, cur)
     responseObject = {
         'status': f"Added {target} to your contacts / friends list"
     }
@@ -392,6 +439,18 @@ def showChat():
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
     data = request.json
     print(data)
     target = data['target']
@@ -399,7 +458,6 @@ def showChat():
     tableName = "`" + username + "`"
     query = f'UPDATE {tableName} SET currContact = "{target}"'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     mydb.commit()
     tableName = getTableName(username, target)
@@ -414,7 +472,6 @@ def showChat():
     query = f'SELECT lastSeenTime FROM lastSeen WHERE contact_name = "{target}"'
     cur.execute(query)
     lastSeen = cur.fetchone()
-    disConnDb(mydb, cur)
     print(msgs)
     responseObject = {
         'data': msgs,
@@ -422,13 +479,23 @@ def showChat():
     }
     return responseObject
 
-@app.route('/sendMsg', methods=['GET', 'POST'])
+@app.route('/sendMsg', methods=['POST'])
 def sendMsg():
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
-    if request.method != 'POST':
-        return "400 Bad Request", 400
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
     data = request.json
     print(data)
     sender = session['user_details']['username']
@@ -442,11 +509,9 @@ def sendMsg():
     msgStatus = "sent"
     query = f'SELECT lastSeenTime FROM lastSeen WHERE contact_name = "{receiver}"'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     status = cur.fetchone()
     if status == "online":
-        msgStatus = "received"
         tableName = "`" + receiver + "`"
         query = f'SELECT currContact FROM {tableName} LIMIT 1'
         print(query)
@@ -463,7 +528,6 @@ def sendMsg():
     query = f'SELECT * FROM {tableName} ORDER BY S_no DESC LIMIT 1'
     cur.execute(query)
     msg = cur.fetchall()
-    disConnDb(mydb, cur)
     print(msg)
     msg = msg[0]
     responseObject = {
@@ -472,13 +536,23 @@ def sendMsg():
     }
     return responseObject
 
-@app.route('/editMsg', methods=['GET', 'POST'])
+@app.route('/editMsg', methods=['POST'])
 def editMsg():
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
-    if request.method != 'POST':
-        return "400 Bad Request", 400
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
     username = session['user_details']['username']
     data = request.json
     print(data)
@@ -486,24 +560,32 @@ def editMsg():
     id = data['id']
     modifiedBody = data['textBody']
     tableName = getTableName(username, target)
-    query = f'UPDATE {tableName} SET textBody = "{modifiedBody}" WHERE S_no = {id}'
+    query = f'UPDATE {tableName} SET textBody = "{modifiedBody}", msgStatus = "sent" WHERE S_no = {id}'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     mydb.commit()
-    disConnDb(mydb, cur)
     responseObject = {
         'status': "Edited message successfully"
     }
     return responseObject
 
-@app.route('/deleteMsg', methods=['GET', 'POST'])
+@app.route('/deleteMsg', methods=['POST'])
 def deleteMsg():
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
-    if request.method != 'POST':
-        return "400 Bad Request", 400
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
     username = session['user_details']['username']
     data = request.json
     print(data)
@@ -512,22 +594,30 @@ def deleteMsg():
     tableName = getTableName(username, target)
     query = f'DELETE FROM {tableName} WHERE S_no = {id}'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     mydb.commit()
-    disConnDb(mydb, cur)
     responseObject = {
         'status': "Message deleted"
     }
     return responseObject
 
-@app.route('/clearChat', methods=['GET', 'POST'])
+@app.route('/clearChat', methods=['POST'])
 def clearChat():
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
-    if request.method != 'POST':
-        return "400 Bad Request", 400
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
     data = request.json
     print(data)
     username = session['user_details']['username']
@@ -535,39 +625,43 @@ def clearChat():
     tableName = getTableName(username, contact)
     query = f'DELETE FROM {tableName}'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     mydb.commit()
-    disConnDb(mydb, cur)
     responseObject = {
         'status': "Successfully deleted all the mssages"
     }
     return responseObject
 
-@app.route('/deleteContact', methods=['GET', 'POST'])
+@app.route('/deleteContact', methods=['POST'])
 def deleteContact():
     token = session.get('jwt_token')
     if not token:
         return redirect(url_for('index'))
-    if request.method != 'POST':
-        return "400 Bad Request", 400
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        username = payload['username']
+        update_online(username)
+    except jwt.exceptions.ExpiredSignatureError:
+        # Token has expired
+        session.clear()
+        return redirect(url_for('index'))
+    except jwt.exceptions.InvalidTokenError:
+        # Token is invalid
+        session.clear()
+        return redirect(url_for('index'))
     responseObject = {}
     return responseObject
 
-@app.route('/close', methods=['GET', 'POST'])
+@app.route('/close', methods=['POST'])
 def close():
     username = session['user_details']['username']
-    if request.method != 'POST':
-        return "400 Bad Request", 400
     current_datetime = datetime.datetime.now()
     formatted_datetime = current_datetime.strftime("%Y-%m-%d %H:%M:%S")
     print("Formatted date and time:", formatted_datetime)
     query = f'UPDATE lastSeen SET lastSeenTime = "{formatted_datetime}" WHERE contact_name = "{username}"'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     mydb.commit()
-    disConnDb(mydb, cur)
     responseObject = {
         'status': 'OK'
     }
@@ -581,10 +675,8 @@ def logout():
     print("Formatted date and time:", formatted_datetime)
     query = f'UPDATE lastSeen SET lastSeenTime = "{formatted_datetime}" WHERE contact_name = "{username}"'
     print(query)
-    mydb, cur = dbConnect()
     cur.execute(query)
     mydb.commit()
-    disConnDb(mydb, cur)
     session.pop('jwt_token', None)
     session.pop('user_details', None)
     return redirect(url_for('index'))
