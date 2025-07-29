@@ -312,12 +312,11 @@
       </div>
     </div>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="socket.js"></script>
+    <script src="{{ url_for('static', filename='socket.js') }}"></script>
     <script>
       const currUser = document.getElementById("user").innerText.trim();
       const contentDiv = document.querySelector(".chat-content");
       const inputTag = document.getElementById("input-tag");
-      console.log(inputTag);
       let viewingID = 0;
 
       window.addEventListener("beforeunload", function (event) {

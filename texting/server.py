@@ -13,26 +13,22 @@ socketio = SocketIO(app, cors_allowed_origins='*')
 user_socket_map = {}
 
 @socketio.on('connect')
-def handle_connect():
+def on_connect():
     token = session.get('jwt_token')
     if not token:
-        return False
+        print("No token found")
+        return
     try:
         payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
         username = payload['username']
         user_socket_map[username] = request.sid
-        print(f"User {username} connected with socket ID {request.sid}")
-        emit('connected', {'status': 'connected'})
-    except jwt.exceptions.ExpiredSignatureError:
-        # Token has expired
-        session.clear()
-        emit('error', {'message': 'Session expired. Please log in again.'})
-        return False
-    except jwt.exceptions.InvalidTokenError:
-        # Token is invalid
-        session.clear()
-        emit('error', {'message': 'Invalid token. Please log in again.'})
-        return False
+        print(f"{username} connected with socket ID: {request.sid}")
+        print("Current mapping:", user_socket_map)
+        emit('server_connected', {'message': f'Welcome, {username}!'})
+    except jwt.ExpiredSignatureError:
+        print("Token expired")
+    except jwt.InvalidTokenError:
+        print("Invalid token")
     
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -44,13 +40,10 @@ def handle_disconnect():
         username = payload['username']
         if username in user_socket_map:
             del user_socket_map[username]
-            print(f"User {username} disconnected")
-    except jwt.exceptions.ExpiredSignatureError:
-        # Token has expired
-        session.clear()
-    except jwt.exceptions.InvalidTokenError:
-        # Token is invalid
-        session.clear()
+            print(f"🔌 {username} disconnected")
+            print("Current mapping:", user_socket_map)
+    except:
+        pass  # Ignore token issues during disconnect
 
 @socketio.on('join')
 def handle_join(data):
@@ -59,11 +52,11 @@ def handle_join(data):
         emit('joined', {'status': 'error', 'message': 'Username is required'})
         return
     if username in user_socket_map:
+        print(f"User {username} already joined with socket ID {user_socket_map[username]}")
         emit('joined', {'status': 'already joined'})
     else:
         user_socket_map[username] = request.sid
-        print(f"User {username} joined with socket ID {request.sid}")
-        print(f"Current user socket map: {user_socket_map}")
+        print(f"2: User {username} joined with socket ID {request.sid}")
         emit('joined', {'status': 'joined'})
 
 mydb = pymysql.connect(
